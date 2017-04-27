@@ -129,10 +129,30 @@ public class ContainerExecDecorator extends LauncherDecorator implements Seriali
 
                 waitQuietly(started);
 
-                //We need to get into the project workspace.
-                //The workspace is not known in advance, so we have to execute a cd command.
-                watch.getInput().write(String.format("cd \"%s\"%s", starter.pwd(), NEWLINE).getBytes(StandardCharsets.UTF_8));
-                doExec(watch, launcher.getListener().getLogger(), getCommands(starter));
+                int tryCount = 0;
+                int maxTries = 0;
+
+                while (true) {
+                    try {
+                        //We need to get into the project workspace.
+                        //The workspace is not known in advance, so we have to execute a cd command.
+                        watch.getInput().write(String.format("cd \"%s\"%s", starter.pwd(), NEWLINE).getBytes(StandardCharsets.UTF_8));
+                        doExec(watch, launcher.getListener().getLogger(), getCommands(starter));
+                        break;
+                    } catch (IOException e) {
+                        if (++tryCount == maxTries) {
+                            launcher.getListener().getLogger().println("Reached max tries, giving up.");
+                            throw e;
+                        }
+                        launcher.getListener().getLogger().println("Failed to get into project workspace, retrying...");
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException _) {
+                            // we don't care
+                        }
+                    }
+                }
+
                 proc = new ContainerExecProc(watch, alive, finished);
                 return proc;
             }
